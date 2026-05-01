@@ -1,0 +1,2 @@
+# ตอนนี้ service ใช้ standard library ล้วน
+# ไฟล์นี้เผื่อไว้สำหรับเพิ่ม package ภายหลัง เช่น fastapi, pydantic, uvicorn
