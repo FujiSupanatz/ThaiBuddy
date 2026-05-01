@@ -1,0 +1,34 @@
+services:
+  python-chat-service:
+    build:
+      context: ./backend/python-chat-service
+    environment:
+      PYTHON_CHAT_SERVICE_HOST: 0.0.0.0
+      PYTHON_CHAT_SERVICE_PORT: 8001
+      TYPHOON_API_KEY: ${TYPHOON_API_KEY}
+      TYPHOON_BASE_URL: ${TYPHOON_BASE_URL:-https://api.opentyphoon.ai/v1}
+      TYPHOON_MODEL: ${TYPHOON_MODEL:-typhoon-v2.5-30b-a3b-instruct}
+    ports:
+      - "8001:8001"
+
+  go-chat-api:
+    build:
+      context: ./backend/go-chat-api
+    depends_on:
+      - python-chat-service
+    environment:
+      GO_CHAT_API_ADDR: :8080
+      PYTHON_CHAT_SERVICE_URL: http://python-chat-service:8001/chat
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN:-http://localhost:3000}
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: .
+    depends_on:
+      - go-chat-api
+    environment:
+      NEXT_PUBLIC_CHAT_API_URL: ${NEXT_PUBLIC_CHAT_API_URL:-http://localhost:8080/api/v1/chat}
+    ports:
+      - "3000:3000"

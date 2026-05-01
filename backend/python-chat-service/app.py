@@ -49,8 +49,8 @@ def load_env_files() -> None:
 
 load_env_files()
 
-
-TYPHOON_API_URL = "https://api.opentyphoon.ai/v1/chat/completions"
+TYPHOON_BASE_URL = os.getenv("TYPHOON_BASE_URL", "https://api.opentyphoon.ai/v1")
+TYPHOON_API_URL = f"{TYPHOON_BASE_URL.rstrip('/')}/chat/completions"
 HOST = os.getenv("PYTHON_CHAT_SERVICE_HOST", "0.0.0.0")
 PORT = int(os.getenv("PYTHON_CHAT_SERVICE_PORT", "8001"))
 TYPHOON_MODEL = os.getenv("TYPHOON_MODEL", "typhoon-v2.5-30b-a3b-instruct")

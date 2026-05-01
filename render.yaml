@@ -1,0 +1,51 @@
+services:
+  - type: pserv
+    name: thatbuddy-python-chat
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./backend/python-chat-service/Dockerfile
+    dockerContext: ./backend/python-chat-service
+    rootDir: ./backend/python-chat-service
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_CHAT_SERVICE_HOST
+        value: 0.0.0.0
+      - key: PYTHON_CHAT_SERVICE_PORT
+        value: 8001
+      - key: TYPHOON_MODEL
+        value: typhoon-v2.5-30b-a3b-instruct
+      - key: TYPHOON_BASE_URL
+        value: https://api.opentyphoon.ai/v1
+      - key: TYPHOON_API_KEY
+        sync: false
+
+  - type: web
+    name: thatbuddy-go-api
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./backend/go-chat-api/Dockerfile
+    dockerContext: ./backend/go-chat-api
+    rootDir: ./backend/go-chat-api
+    healthCheckPath: /health
+    envVars:
+      - key: GO_CHAT_API_ADDR
+        value: :8080
+      - key: PYTHON_CHAT_SERVICE_HOSTPORT
+        fromService:
+          type: pserv
+          name: thatbuddy-python-chat
+          property: hostport
+      - key: CORS_ALLOW_ORIGIN
+        sync: false
+
+  - type: web
+    name: thatbuddy-frontend
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    rootDir: ./
+    healthCheckPath: /
+    envVars:
+      - key: NEXT_PUBLIC_CHAT_API_URL
+        sync: false

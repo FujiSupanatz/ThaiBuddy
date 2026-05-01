@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -29,7 +30,7 @@ func main() {
 	loadEnvFiles()
 
 	addr := getEnv("GO_CHAT_API_ADDR", ":8080")
-	pythonServiceURL := getEnv("PYTHON_CHAT_SERVICE_URL", "http://localhost:8001/chat")
+	pythonServiceURL := getPythonServiceURL()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
@@ -54,4 +55,16 @@ func getEnv(key, fallback string) string {
 	}
 
 	return fallback
+}
+
+func getPythonServiceURL() string {
+	if value := strings.TrimSpace(os.Getenv("PYTHON_CHAT_SERVICE_URL")); value != "" {
+		return value
+	}
+
+	if hostport := strings.TrimSpace(os.Getenv("PYTHON_CHAT_SERVICE_HOSTPORT")); hostport != "" {
+		return "http://" + hostport + "/chat"
+	}
+
+	return "http://localhost:8001/chat"
 }

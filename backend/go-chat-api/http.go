@@ -3,11 +3,18 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"strings"
 )
 
 func withCORS(next http.Handler) http.Handler {
+	allowedOrigin := strings.TrimSpace(os.Getenv("CORS_ALLOW_ORIGIN"))
+	if allowedOrigin == "" {
+		allowedOrigin = "*"
+	}
+
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		writer.Header().Set("Access-Control-Allow-Origin", "*")
+		writer.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 		writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 
