@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import ChatSheet from "./chat/chat-sheet";
 import ChatTrigger from "./chat/chat-trigger";
@@ -11,9 +11,15 @@ import {
   INITIAL_MESSAGES,
 } from "./constants";
 import FloatingActions from "./map/floating-actions";
-import MapBackground from "./map/map-background";
-import TopBar from "./map/top-bar";
-import type { ChatTab, CurrencyCode, Message, ViewMode, VisionTab } from "./types";
+import MapExperience from "./map/map-experience";
+import type {
+  ChatTab,
+  CurrencyCode,
+  Message,
+  UserLocation,
+  ViewMode,
+  VisionTab,
+} from "./types";
 import VisionOverlay from "./vision/vision-overlay";
 
 function getApiErrorMessage(errorText: string) {
@@ -34,11 +40,67 @@ function getApiErrorMessage(errorText: string) {
   return "Error: unable to get a reply from the chatbot service.";
 }
 
+const CHAT_SESSION_STORAGE_KEY = "thatbuddy-chat-session-id";
+const USER_LOCATION_STORAGE_KEY = "thatbuddy-user-location";
+const USER_LOCATION_DRAFT_STORAGE_KEY = "thatbuddy-user-location-draft";
+
+function createSessionId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function getOrCreateChatSessionId() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  const existingSessionId = window.sessionStorage.getItem(CHAT_SESSION_STORAGE_KEY);
+  if (existingSessionId) {
+    return existingSessionId;
+  }
+
+  const newSessionId = createSessionId();
+  window.sessionStorage.setItem(CHAT_SESSION_STORAGE_KEY, newSessionId);
+  return newSessionId;
+}
+
+function loadStoredLocation() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const rawLocation = window.sessionStorage.getItem(USER_LOCATION_STORAGE_KEY);
+  if (!rawLocation) {
+    return null;
+  }
+
+  try {
+    const parsedLocation = JSON.parse(rawLocation) as UserLocation;
+    if (parsedLocation?.lat === null || parsedLocation?.lng === null) {
+      return null;
+    }
+    return parsedLocation;
+  } catch {
+    return null;
+  }
+}
+
+function loadStoredLocationDraft() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return window.sessionStorage.getItem(USER_LOCATION_DRAFT_STORAGE_KEY) ?? "";
+}
+
 export default function LandingPage() {
-  // ปลายทางของ chatbot สำหรับ frontend
-  // ค่า default ชี้ไปที่ Go API ที่จะเป็น backend กลาง
-  const chatApiUrl =
-    process.env.NEXT_PUBLIC_CHAT_API_URL ?? "http://localhost:8080/api/v1/chat";
+  // ให้ browser คุยกับ Next route handler บน origin เดียวกันเสมอ
+  // แล้วค่อยให้ Next proxy ไปหา Go backend ข้างหลัง เพื่อลดปัญหา CORS
+  // และไม่ต้องเปิด backend tunnel ให้ client เครื่องอื่นยิงตรง
+  const chatApiUrl = "/api/v1/chat";
 
   // Root state ของหน้าจอ landing ทั้งหมด:
   // - view คุมว่าผู้ใช้กำลังดู map ปกติ หรือ vision overlay
@@ -53,12 +115,87 @@ export default function LandingPage() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [inputText, setInputText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [chatSessionId, setChatSessionId] = useState("");
+  const [currentLocation, setCurrentLocation] = useState<UserLocation | null>(null);
+  const [locationDraftLabel, setLocationDraftLabel] = useState("");
 
   // state ชุดนี้เป็นของ vision > currency tool
   // เก็บจำนวนเงินบาท, สกุลเงินปลายทาง, และสถานะว่า scanner animation ควรทำงานหรือไม่
   const [thbAmount, setThbAmount] = useState("");
   const [targetCurrency, setTargetCurrency] = useState<CurrencyCode>("USD");
   const [isScanning, setIsScanning] = useState(true);
+
+  useEffect(() => {
+    // Browser tab butละอันจะได้ session ของตัวเอง เพื่อให้ backend
+    // แยกประวัติแชทและจัดคิว request ไม่ให้ชนกันใน session เดียว
+    setChatSessionId(getOrCreateChatSessionId());
+    setCurrentLocation(loadStoredLocation());
+    setLocationDraftLabel(loadStoredLocationDraft());
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (currentLocation) {
+      window.sessionStorage.setItem(
+        USER_LOCATION_STORAGE_KEY,
+        JSON.stringify(currentLocation),
+      );
+    } else {
+      window.sessionStorage.removeItem(USER_LOCATION_STORAGE_KEY);
+    }
+  }, [currentLocation]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (locationDraftLabel.trim()) {
+      window.sessionStorage.setItem(
+        USER_LOCATION_DRAFT_STORAGE_KEY,
+        locationDraftLabel,
+      );
+    } else {
+      window.sessionStorage.removeItem(USER_LOCATION_DRAFT_STORAGE_KEY);
+    }
+  }, [locationDraftLabel]);
+
+  const shouldAttachLocation = chatTab === "nearby" || chatTab === "planner";
+  const hasCoordinateLocation =
+    currentLocation?.lat !== null && currentLocation?.lng !== null;
+  const fallbackLocationLabel = locationDraftLabel.trim();
+  const effectiveChatLocation =
+    hasCoordinateLocation && currentLocation
+      ? currentLocation
+      : fallbackLocationLabel
+        ? {
+            lat: null,
+            lng: null,
+            label: fallbackLocationLabel,
+            source: "manual-text" as const,
+            updatedAt: Date.now(),
+          }
+        : null;
+  const chatLocationPayload =
+    shouldAttachLocation && effectiveChatLocation
+      ? {
+          lat: effectiveChatLocation.lat,
+          lng: effectiveChatLocation.lng,
+          label: effectiveChatLocation.label,
+          source: effectiveChatLocation.source,
+          updated_at: effectiveChatLocation.updatedAt,
+        }
+      : undefined;
+  const locationNotice = shouldAttachLocation
+    ? hasCoordinateLocation
+      ? `Using current location: ${currentLocation?.label || `${currentLocation?.lat?.toFixed(4)}, ${currentLocation?.lng?.toFixed(4)}`} (${currentLocation?.lat?.toFixed(4)}, ${currentLocation?.lng?.toFixed(4)})`
+      : fallbackLocationLabel
+        ? `Using current location: ${fallbackLocationLabel}`
+        : "Location unavailable. Use GPS, click the map, or search a place first."
+    : null;
 
   const handleSendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -88,6 +225,8 @@ export default function LandingPage() {
         body: JSON.stringify({
           message: text,
           mode: chatTab,
+          session_id: chatSessionId || getOrCreateChatSessionId(),
+          ...(chatLocationPayload ? { location: chatLocationPayload } : {}),
         }),
       });
 
@@ -146,11 +285,14 @@ export default function LandingPage() {
 
   return (
     <div className="relative mx-auto h-screen w-full max-w-md overflow-hidden border-x border-gray-200 bg-gray-100 font-sans shadow-2xl">
-      {/* ชั้นพื้นหลัง: แผนที่ถูก render ตลอดเวลาเป็น base layer ของหน้า */}
-      <MapBackground />
-
-      {/* ชั้นบนสุดของหน้า map: logo และตัวเลือกภาษา */}
-      <TopBar />
+      {/* แทนที่แผนที่ placeholder เดิมด้วย Google Maps experience จริง
+          และย้าย feature map/filter/result จากไฟล์ Mapping\\index.html เข้ามาอยู่ในแอปนี้ */}
+      <MapExperience
+        initialLocation={currentLocation}
+        initialLocationDraft={locationDraftLabel}
+        onLocationChange={setCurrentLocation}
+        onLocationDraftChange={setLocationDraftLabel}
+      />
 
       {view === "map" && (
         <FloatingActions
@@ -175,6 +317,7 @@ export default function LandingPage() {
         messages={messages}
         inputText={inputText}
         isSending={isSending}
+        locationNotice={locationNotice}
         onClose={() => setChatOpen(false)}
         onTabChange={handleTabChange}
         onInputChange={setInputText}

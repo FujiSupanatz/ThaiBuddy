@@ -11,12 +11,12 @@ import (
 
 func healthHandler(writer http.ResponseWriter, _ *http.Request) {
 	writeJSON(writer, http.StatusOK, map[string]string{
-		"status": "ok",
+		"status":  "ok",
 		"service": "go-chat-api",
 	})
 }
 
-func chatHandler(pythonServiceURL string) http.HandlerFunc {
+func chatHandler(pythonServiceURL string, sessionStore *chatSessionStore) http.HandlerFunc {
 	client := &http.Client{Timeout: 45 * time.Second}
 
 	return func(writer http.ResponseWriter, request *http.Request) {
@@ -42,6 +42,7 @@ func chatHandler(pythonServiceURL string) http.HandlerFunc {
 
 		payload.Message = strings.TrimSpace(payload.Message)
 		payload.Mode = strings.TrimSpace(payload.Mode)
+		payload.SessionID = strings.TrimSpace(payload.SessionID)
 
 		if payload.Message == "" {
 			writeJSON(writer, http.StatusBadRequest, map[string]string{
@@ -54,9 +55,19 @@ func chatHandler(pythonServiceURL string) http.HandlerFunc {
 			payload.Mode = "general"
 		}
 
+		sessionID, session := sessionStore.get(payload.SessionID)
+
+		// Serialise requests per session so the same browser/tab cannot interleave
+		// multiple sends and corrupt conversational ordering.
+		session.mutex.Lock()
+		defer session.mutex.Unlock()
+
 		pythonPayload := pythonChatRequest{
-			Message: payload.Message,
-			Mode:    payload.Mode,
+			Message:   payload.Message,
+			Mode:      payload.Mode,
+			SessionID: sessionID,
+			History:   session.snapshotHistory(),
+			Location:  sanitizeLocationForMode(payload.Mode, payload.Location),
 		}
 
 		body, err := json.Marshal(pythonPayload)
@@ -117,5 +128,9 @@ func chatHandler(pythonServiceURL string) http.HandlerFunc {
 		writeJSON(writer, http.StatusOK, chatResponse{
 			Reply: pythonPayloadResponse.Reply,
 		})
+
+		// Only persist conversational turns after the AI call succeeds.
+		session.appendTurn("user", payload.Message)
+		session.appendTurn("assistant", pythonPayloadResponse.Reply)
 	}
 }

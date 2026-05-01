@@ -12,6 +12,7 @@ interface ChatSheetProps {
   messages: Message[];
   inputText: string;
   isSending: boolean;
+  locationNotice?: string | null;
   onClose: () => void;
   onTabChange: (tab: ChatTab) => void;
   onInputChange: (value: string) => void;
@@ -24,6 +25,7 @@ export default function ChatSheet({
   messages,
   inputText,
   isSending,
+  locationNotice,
   onClose,
   onTabChange,
   onInputChange,
@@ -43,6 +45,7 @@ export default function ChatSheet({
       <ChatInput
         value={inputText}
         isSending={isSending}
+        locationNotice={locationNotice}
         onChange={onInputChange}
         onSubmit={onSubmit}
       />

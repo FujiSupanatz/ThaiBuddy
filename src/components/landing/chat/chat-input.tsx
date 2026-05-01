@@ -5,6 +5,7 @@ import { IconSend } from "../icons";
 interface ChatInputProps {
   value: string;
   isSending: boolean;
+  locationNotice?: string | null;
   onChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }
@@ -12,6 +13,7 @@ interface ChatInputProps {
 export default function ChatInput({
   value,
   isSending,
+  locationNotice,
   onChange,
   onSubmit,
 }: ChatInputProps) {
@@ -19,6 +21,11 @@ export default function ChatInput({
     // input form นี้ไม่เก็บ state เอง
     // รับค่าจาก parent เพื่อให้ state management อยู่จุดเดียว
     <div className="flex-shrink-0 border-t bg-white p-4">
+      {locationNotice ? (
+        <div className="mb-3 rounded-xl bg-blue-50 px-3 py-2 text-[11px] text-blue-700">
+          {locationNotice}
+        </div>
+      ) : null}
       <form onSubmit={onSubmit} className="relative flex gap-2">
         <input
           type="text"

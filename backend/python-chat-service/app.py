@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -68,6 +69,10 @@ TYPHOON_API_URL = f"{TYPHOON_BASE_URL.rstrip('/')}/chat/completions"
 HOST = os.getenv("PYTHON_CHAT_SERVICE_HOST", "0.0.0.0")
 PORT = int(os.getenv("PYTHON_CHAT_SERVICE_PORT", "8001"))
 TYPHOON_MODEL = os.getenv("TYPHOON_MODEL", "typhoon-v2.5-30b-a3b-instruct")
+MAX_HISTORY_TURNS = 12
+COORDINATE_LABEL_PATTERN = re.compile(
+    r"^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$"
+)
 
 
 def build_system_prompt(mode: str) -> str:
@@ -75,13 +80,16 @@ def build_system_prompt(mode: str) -> str:
         return (
             "You are a Thailand travel assistant focused on nearby recommendations. "
             "Suggest practical places tourists may need such as food, ATM, toilet, transport, "
-            "and nearby attractions. Be concise and helpful."
+            "and nearby attractions. Use the user's current location context when it is provided. "
+            "If coordinates or location context are already provided, do not ask the user where they are again. "
+            "Be concise and helpful."
         )
     if mode == "planner":
         return (
             "You are a Thailand travel assistant focused on planning the next destination. "
             "Use the user's current place or context to suggest the next logical stop, explain why, "
-            "and keep the plan practical for tourists."
+            "and keep the plan practical for tourists. Use the user's current location context when it is provided. "
+            "If coordinates or location context are already provided, do not ask the user where they are again."
         )
 
     return (
@@ -91,17 +99,173 @@ def build_system_prompt(mode: str) -> str:
     )
 
 
-def call_typhoon(message: str, mode: str) -> str:
+def normalize_history(history: Any) -> list[dict[str, str]]:
+    if not isinstance(history, list):
+        return []
+
+    normalized: list[dict[str, str]] = []
+    for item in history[-MAX_HISTORY_TURNS:]:
+        if not isinstance(item, dict):
+            continue
+
+        role = str(item.get("role", "")).strip().lower()
+        content = str(item.get("content", "")).strip()
+
+        if role not in {"user", "assistant"} or not content:
+            continue
+
+        normalized.append({"role": role, "content": content})
+
+    return normalized
+
+
+def normalize_location(location: Any) -> dict[str, Any] | None:
+    if not isinstance(location, dict):
+        return None
+
+    normalized: dict[str, Any] = {}
+
+    lat = location.get("lat")
+    lng = location.get("lng")
+    label = str(location.get("label", "")).strip()
+    source = str(location.get("source", "")).strip()
+
+    if isinstance(lat, (int, float)):
+        normalized["lat"] = float(lat)
+    if isinstance(lng, (int, float)):
+        normalized["lng"] = float(lng)
+    if label:
+        normalized["label"] = label
+    if source:
+        normalized["source"] = source
+
+    if not normalized:
+        return None
+
+    return normalized
+
+
+def has_verified_place_label(location: dict[str, Any] | None) -> bool:
+    if not location:
+        return False
+
+    label = str(location.get("label", "")).strip()
+    if not label:
+        return False
+
+    lowered = label.lower()
+    if lowered == "my gps location":
+        return False
+
+    if COORDINATE_LABEL_PATTERN.match(label):
+        return False
+
+    return True
+
+
+def is_location_identity_question(message: str) -> bool:
+    normalized = message.strip().lower()
+    thai_message = message.strip()
+
+    english_patterns = [
+        "where am i",
+        "where am i now",
+        "what is my location",
+        "my current location",
+        "where is this",
+    ]
+
+    thai_patterns = [
+        "ฉันอยู่ที่ไหน",
+        "ตอนนี้ฉันอยู่ที่ไหน",
+        "ผมอยู่ที่ไหน",
+        "ตอนนี้ผมอยู่ที่ไหน",
+        "อยู่ที่ไหน",
+        "ฉันอยู่ไหน",
+        "ผมอยู่ไหน",
+    ]
+
+    return any(pattern in normalized for pattern in english_patterns) or any(
+        pattern in thai_message for pattern in thai_patterns
+    )
+
+
+def build_coordinates_only_reply(location: dict[str, Any]) -> str:
+    lat = location.get("lat")
+    lng = location.get("lng")
+    if not isinstance(lat, (int, float)) or not isinstance(lng, (int, float)):
+        return "ตอนนี้แอปยังระบุตำแหน่งแบบชื่อสถานที่ไม่ได้ แต่คุณสามารถใช้ GPS หรือคลิกบนแผนที่เพื่ออัปเดตตำแหน่งได้"
+
+    return (
+        f"ตอนนี้ตำแหน่งปัจจุบันของคุณคือพิกัด {lat:.6f}, {lng:.6f} "
+        "แอปยังไม่ได้ยืนยันชื่ออำเภอหรือจังหวัดจากพิกัดนี้แบบแน่นอน จึงจะอ้างอิงจากพิกัดนี้โดยตรงก่อน"
+    )
+
+
+def build_location_context(mode: str, location: dict[str, Any] | None) -> str | None:
+    if mode not in {"nearby", "planner"} or not location:
+        return None
+
+    label = str(location.get("label", "")).strip()
+    verified_place_label = has_verified_place_label(location)
+
+    lines = [
+        "Current user location context:",
+        "Treat the provided coordinates as authoritative.",
+        "Do not guess or rename the city, province, district, or neighborhood from coordinates alone.",
+        "If the app did not provide a verified human-readable place label, refer only to the user's current GPS coordinates.",
+    ]
+
+    if "lat" in location and "lng" in location:
+        lines.append(f"- latitude: {location['lat']:.6f}")
+        lines.append(f"- longitude: {location['lng']:.6f}")
+
+    if verified_place_label:
+        lines.append(f"- verified place label: {label}")
+    elif label:
+        lines.append(f"- raw app label: {label}")
+        lines.append(
+            "- this raw app label is not a verified place name and must not be expanded into a guessed city or province"
+        )
+
+    if location.get("source"):
+        lines.append(f"- source: {location['source']}")
+
+    lines.append(
+        "Use this as the user's current position. Ground nearby or next-stop suggestions in this location context."
+    )
+    return "\n".join(lines)
+
+
+def call_typhoon(
+    message: str,
+    mode: str,
+    history: list[dict[str, str]] | None = None,
+    location: dict[str, Any] | None = None,
+) -> str:
     api_key = os.getenv("TYPHOON_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("TYPHOON_API_KEY is not set")
 
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": build_system_prompt(mode)},
+    ]
+    location_context = build_location_context(mode, location)
+    if location_context:
+        messages.append({"role": "system", "content": location_context})
+    messages.extend(history or [])
+    if location_context:
+        messages.append(
+            {
+                "role": "user",
+                "content": f"Use this location context for the next answer:\n{location_context}",
+            }
+        )
+    messages.append({"role": "user", "content": message})
+
     payload: dict[str, Any] = {
         "model": TYPHOON_MODEL,
-        "messages": [
-            {"role": "system", "content": build_system_prompt(mode)},
-            {"role": "user", "content": message},
-        ],
+        "messages": messages,
         "temperature": 0.4,
         "max_tokens": 512,
     }
@@ -157,12 +321,26 @@ class ChatHandler(BaseHTTPRequestHandler):
 
             message = str(payload.get("message", "")).strip()
             mode = str(payload.get("mode", "general")).strip() or "general"
+            history = normalize_history(payload.get("history"))
+            location = normalize_location(payload.get("location"))
 
             if not message:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"error": "message is required"})
                 return
 
-            reply = call_typhoon(message, mode)
+            if (
+                mode in {"nearby", "planner"}
+                and location
+                and not has_verified_place_label(location)
+                and is_location_identity_question(message)
+            ):
+                self._write_json(
+                    HTTPStatus.OK,
+                    {"reply": build_coordinates_only_reply(location)},
+                )
+                return
+
+            reply = call_typhoon(message, mode, history, location)
             self._write_json(HTTPStatus.OK, {"reply": reply})
         except HTTPError as error:
             body = error.read().decode("utf-8", errors="replace")
