@@ -13,6 +13,7 @@ Flow:
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 from http import HTTPStatus
@@ -20,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import quote_plus, urlencode
 from urllib.request import Request, urlopen
 
 
@@ -72,6 +73,22 @@ GOOGLE_GEOCODING_API_URL = os.getenv(
     "https://maps.googleapis.com/maps/api/geocode/json",
 )
 GOOGLE_GEOCODING_LANGUAGE = os.getenv("GOOGLE_GEOCODING_LANGUAGE", "en")
+OVERPASS_API_URL = os.getenv(
+    "OVERPASS_API_URL",
+    "https://overpass.kumi.systems/api/interpreter",
+)
+OVERPASS_RADIUS_METERS = int(os.getenv("OVERPASS_RADIUS_METERS", "3000"))
+OVERPASS_NEARBY_RADIUS_METERS = int(
+    os.getenv("OVERPASS_NEARBY_RADIUS_METERS", "1500")
+)
+OVERPASS_API_CANDIDATES = [
+    url.strip()
+    for url in os.getenv(
+        "OVERPASS_API_URLS",
+        f"{OVERPASS_API_URL},https://overpass-api.de/api/interpreter",
+    ).split(",")
+    if url.strip()
+]
 HOST = os.getenv("PYTHON_CHAT_SERVICE_HOST", "0.0.0.0")
 PORT = int(os.getenv("PYTHON_CHAT_SERVICE_PORT", "8001"))
 TYPHOON_MODEL = os.getenv("TYPHOON_MODEL", "typhoon-v2.5-30b-a3b-instruct")
@@ -215,6 +232,236 @@ def normalize_planner_result(planner_result: Any) -> dict[str, Any] | None:
     return normalized
 
 
+def normalize_nearby_result(nearby_result: Any) -> dict[str, Any] | None:
+    if not isinstance(nearby_result, dict):
+        return None
+
+    places = nearby_result.get("places")
+    label = str(nearby_result.get("label", "")).strip()
+    intent = str(nearby_result.get("intent", "")).strip()
+
+    normalized_places: list[dict[str, Any]] = []
+    if isinstance(places, list):
+        for place in places:
+            if not isinstance(place, dict):
+                continue
+
+            normalized_places.append(
+                {
+                    "name": str(place.get("name", "")).strip(),
+                    "type": str(place.get("type", "")).strip(),
+                    "distance_km": place.get("distance_km")
+                    if isinstance(place.get("distance_km"), (int, float))
+                    else None,
+                    "address": str(place.get("address", "")).strip(),
+                    "opening_hours": str(place.get("opening_hours", "")).strip(),
+                }
+            )
+
+    if not normalized_places:
+        return None
+
+    return {
+        "intent": intent,
+        "label": label,
+        "places": normalized_places,
+    }
+
+
+def infer_nearby_intent(message: str) -> dict[str, str] | None:
+    normalized = message.strip().lower()
+
+    def has_any(terms: list[str]) -> bool:
+        return any(term in normalized for term in terms)
+
+    if has_any(["coffee", "cafe", "กาแฟ", "คาเฟ่"]):
+        return {
+            "intent": "coffee",
+            "label": "coffee or cafes",
+            "filter": '"amenity"~"cafe"',
+        }
+
+    if has_any(
+        [
+            "food",
+            "restaurant",
+            "eat",
+            "lunch",
+            "dinner",
+            "breakfast",
+            "rice",
+            "noodle",
+            "ร้านอาหาร",
+            "อาหาร",
+            "ข้าว",
+            "ก๋วยเตี๋ยว",
+            "กินอะไร",
+            "กินข้าว",
+        ]
+    ):
+        return {
+            "intent": "food",
+            "label": "restaurants or food places",
+            "filter": '"amenity"~"restaurant|fast_food|food_court|cafe"',
+        }
+
+    if has_any(["atm", "cash", "ถอนเงิน", "ตู้เอทีเอ็ม", "เอทีเอ็ม"]):
+        return {
+            "intent": "atm",
+            "label": "ATMs",
+            "filter": '"amenity"~"atm|bank"',
+        }
+
+    if has_any(["toilet", "restroom", "bathroom", "ห้องน้ำ", "ส้วม"]):
+        return {
+            "intent": "restroom",
+            "label": "restrooms",
+            "filter": '"amenity"~"toilets"',
+        }
+
+    if has_any(["bus", "train", "station", "taxi", "transport", "รถ", "ขนส่ง", "สถานี"]):
+        return {
+            "intent": "transport",
+            "label": "transport options",
+            "filter": '"amenity"~"bus_station|taxi"',
+        }
+
+    if has_any(["attraction", "temple", "museum", "เที่ยว", "วัด", "พิพิธภัณฑ์", "สถานที่ท่องเที่ยว"]):
+        return {
+            "intent": "attraction",
+            "label": "attractions",
+            "filter": '"tourism"~"attraction|museum|viewpoint|gallery|artwork"',
+        }
+
+    return None
+
+
+def approximate_distance_km(
+    lat1: float,
+    lng1: float,
+    lat2: float,
+    lng2: float,
+) -> float:
+    return round(
+        (
+            (
+                ((lat2 - lat1) * 111) ** 2
+                + ((lng2 - lng1) * 111 * math.cos((lat1 * math.pi) / 180)) ** 2
+            )
+            ** 0.5
+        ),
+        1,
+    )
+
+
+def search_nearby_places_for_message(
+    message: str,
+    location: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not location:
+        return None
+
+    lat = location.get("lat")
+    lng = location.get("lng")
+    if not isinstance(lat, (int, float)) or not isinstance(lng, (int, float)):
+        return None
+
+    intent = infer_nearby_intent(message)
+    if not intent:
+        return None
+
+    overpass_query = f"""
+        [out:json][timeout:25];
+        (
+          node[{intent['filter']}](around:{OVERPASS_NEARBY_RADIUS_METERS},{float(lat)},{float(lng)});
+          way[{intent['filter']}](around:{OVERPASS_NEARBY_RADIUS_METERS},{float(lat)},{float(lng)});
+        );
+        out center 20;
+    """
+    payload = None
+    for candidate_url in OVERPASS_API_CANDIDATES:
+        request = Request(
+            candidate_url,
+            data=f"data={quote_plus(overpass_query)}".encode("utf-8"),
+            method="POST",
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "User-Agent": "ThatBuddy/1.0 (python-nearby-engine)",
+            },
+        )
+
+        try:
+            with urlopen(request, timeout=45) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            break
+        except Exception:
+            payload = None
+
+    if not isinstance(payload, dict):
+        return None
+
+    elements = payload.get("elements")
+    if not isinstance(elements, list):
+        return None
+
+    places: list[dict[str, Any]] = []
+    for element in elements:
+        if not isinstance(element, dict):
+            continue
+
+        tags = element.get("tags")
+        if not isinstance(tags, dict):
+            continue
+
+        name = tags.get("name:en") or tags.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
+
+        place_lat = element.get("lat", element.get("center", {}).get("lat"))
+        place_lng = element.get("lon", element.get("center", {}).get("lon"))
+        if not isinstance(place_lat, (int, float)) or not isinstance(place_lng, (int, float)):
+            continue
+
+        address_parts = [
+            tags.get("addr:housenumber"),
+            tags.get("addr:street"),
+            tags.get("addr:district"),
+            tags.get("addr:province"),
+        ]
+        address = " ".join(str(part).strip() for part in address_parts if part)
+
+        places.append(
+            {
+                "name": name.strip(),
+                "type": str(
+                    tags.get("amenity")
+                    or tags.get("tourism")
+                    or tags.get("public_transport")
+                    or "place"
+                ).strip(),
+                "distance_km": approximate_distance_km(
+                    float(lat),
+                    float(lng),
+                    float(place_lat),
+                    float(place_lng),
+                ),
+                "address": address,
+                "opening_hours": str(tags.get("opening_hours", "")).strip(),
+            }
+        )
+
+    places.sort(key=lambda item: item.get("distance_km") or 999999)
+    places = places[:6]
+    if not places:
+        return None
+
+    return {
+        "intent": intent["intent"],
+        "label": intent["label"],
+        "places": places,
+    }
+
+
 def has_verified_place_label(location: dict[str, Any] | None) -> bool:
     if not location:
         return False
@@ -258,6 +505,10 @@ def is_location_identity_question(message: str) -> bool:
     return any(pattern in normalized for pattern in english_patterns) or any(
         pattern in thai_message for pattern in thai_patterns
     )
+
+
+def contains_thai_text(message: str) -> bool:
+    return bool(re.search(r"[\u0E00-\u0E7F]", message))
 
 
 def build_mode_follow_up_question(mode: str, message: str) -> str | None:
@@ -376,6 +627,79 @@ def build_planner_context(
         "Use this planner result as authoritative structured context for the next-stop recommendation. "
         "Summarize it clearly for the user. Prefer one best next stop from the structured itinerary if the user asked generally."
     )
+
+
+def build_nearby_context(
+    mode: str,
+    nearby_result: dict[str, Any] | None,
+) -> str | None:
+    if mode != "nearby" or not nearby_result:
+        return None
+
+    return (
+        "Structured nearby search result generated from real places near the user:\n"
+        f"{json.dumps(nearby_result, ensure_ascii=False, indent=2)}\n"
+        "Use only these nearby places when recommending food, coffee, ATMs, restrooms, transport, or attractions. "
+        "Do not invent other places outside this result set unless you explicitly say you do not have enough real nearby results."
+    )
+
+
+def build_grounded_nearby_reply(
+    message: str,
+    nearby_result: dict[str, Any],
+) -> str:
+    places = nearby_result.get("places")
+    if not isinstance(places, list) or not places:
+        if contains_thai_text(message):
+            return "ตอนนี้ยังไม่พบผลลัพธ์จริงใกล้ตัวจากชุดข้อมูลรอบพิกัดนี้ ลองขยายคำถามให้ชัดขึ้น เช่น ร้านอาหาร ร้านกาแฟ ATM หรือห้องน้ำ"
+        return (
+            "I could not find grounded nearby results from the real place dataset for that request yet. "
+            "Try asking more specifically, such as restaurants, coffee, ATMs, or restrooms."
+        )
+
+    top_places = places[:3]
+    if contains_thai_text(message):
+        lines = [
+            f"ผมเจอ{nearby_result.get('label', 'สถานที่ใกล้คุณ')}จริงใกล้ตำแหน่งปัจจุบันดังนี้:",
+        ]
+        for index, place in enumerate(top_places, start=1):
+            distance = place.get("distance_km")
+            address = str(place.get("address", "")).strip()
+            parts = [f"{index}. {place.get('name', '')}"]
+            if isinstance(distance, (int, float)):
+                parts.append(f"ห่างประมาณ {distance:.1f} กม.")
+            if address:
+                parts.append(address)
+            lines.append(" - ".join(parts))
+
+        lines.append("ถ้าต้องการ ผมสามารถช่วยปักหมุดหรือแนะนำว่าควรไปที่ไหนก่อนจากรายการนี้ได้")
+        return "\n".join(lines)
+
+    lines = [
+        f"I found these real nearby {nearby_result.get('label', 'places')} close to your current location:",
+    ]
+    for index, place in enumerate(top_places, start=1):
+        distance = place.get("distance_km")
+        address = str(place.get("address", "")).strip()
+        parts = [f"{index}. {place.get('name', '')}"]
+        if isinstance(distance, (int, float)):
+            parts.append(f"about {distance:.1f} km away")
+        if address:
+            parts.append(address)
+        lines.append(" - ".join(parts))
+
+    lines.append("If you want, I can pin one of these on the map or suggest which one to try first.")
+    return "\n".join(lines)
+
+
+def clean_grounded_nearby_reply(reply: str) -> str:
+    cleaned = reply.replace(" - None", "")
+    cleaned = cleaned.replace("restaurants or food places", "ร้านอาหารใกล้คุณ")
+    cleaned = cleaned.replace("coffee or cafes", "คาเฟ่หรือร้านกาแฟใกล้คุณ")
+    cleaned = cleaned.replace("ATMs", "ตู้ ATM ใกล้คุณ")
+    cleaned = cleaned.replace("restrooms", "ห้องน้ำใกล้คุณ")
+    cleaned = cleaned.replace("attractions", "สถานที่เที่ยวใกล้คุณ")
+    return cleaned
 
 
 def build_reverse_geocode_tool() -> dict[str, Any]:
@@ -751,6 +1075,32 @@ def get_default_map_action_from_planner(
     return None
 
 
+def get_default_map_action_from_nearby(
+    nearby_result: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not nearby_result:
+        return None
+
+    places = nearby_result.get("places")
+    if isinstance(places, list):
+        for place in places:
+            if not isinstance(place, dict):
+                continue
+
+            name = str(place.get("name", "")).strip()
+            address = str(place.get("address") or "").strip()
+            if name:
+                query = f"{name} {address}".strip()
+                return {
+                    "type": "pin-place",
+                    "query": query,
+                    "label": name,
+                    "mode": "nearby",
+                }
+
+    return None
+
+
 def extract_map_action(
     *,
     mode: str,
@@ -758,12 +1108,15 @@ def extract_map_action(
     assistant_reply: str,
     location: dict[str, Any] | None,
     planner_result: dict[str, Any] | None = None,
+    nearby_result: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     if mode not in {"nearby", "planner"}:
         return None
 
     if not assistant_reply.strip():
-        return get_default_map_action_from_planner(planner_result) if mode == "planner" else None
+        if mode == "planner":
+            return get_default_map_action_from_planner(planner_result)
+        return get_default_map_action_from_nearby(nearby_result)
 
     location_summary = ""
     if location:
@@ -796,24 +1149,32 @@ def extract_map_action(
     message = get_first_choice_message(response)
     raw_text = extract_text_from_content(message.get("content"))
     if not raw_text:
-        return get_default_map_action_from_planner(planner_result) if mode == "planner" else None
+        if mode == "planner":
+            return get_default_map_action_from_planner(planner_result)
+        return get_default_map_action_from_nearby(nearby_result)
 
     try:
         parsed = json.loads(raw_text)
     except json.JSONDecodeError:
         match = re.search(r"\{.*\}", raw_text, re.DOTALL)
         if not match:
-            return get_default_map_action_from_planner(planner_result) if mode == "planner" else None
+            if mode == "planner":
+                return get_default_map_action_from_planner(planner_result)
+            return get_default_map_action_from_nearby(nearby_result)
         try:
             parsed = json.loads(match.group(0))
         except json.JSONDecodeError:
-            return get_default_map_action_from_planner(planner_result) if mode == "planner" else None
+            if mode == "planner":
+                return get_default_map_action_from_planner(planner_result)
+            return get_default_map_action_from_nearby(nearby_result)
 
     normalized = normalize_map_action(parsed, mode)
     if normalized:
         return normalized
 
-    return get_default_map_action_from_planner(planner_result) if mode == "planner" else None
+    if mode == "planner":
+        return get_default_map_action_from_planner(planner_result)
+    return get_default_map_action_from_nearby(nearby_result)
 
 
 def call_typhoon_api(
@@ -901,7 +1262,20 @@ def call_typhoon(
     history: list[dict[str, str]] | None = None,
     location: dict[str, Any] | None = None,
     planner_result: dict[str, Any] | None = None,
+    nearby_result: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if mode == "nearby" and not nearby_result:
+        nearby_result = search_nearby_places_for_message(message, location)
+
+    if mode == "nearby" and nearby_result:
+        grounded_reply = clean_grounded_nearby_reply(
+            build_grounded_nearby_reply(message, nearby_result)
+        )
+        return {
+            "reply": grounded_reply,
+            "map_action": get_default_map_action_from_nearby(nearby_result),
+        }
+
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": build_system_prompt(mode)},
     ]
@@ -912,6 +1286,9 @@ def call_typhoon(
     planner_context = build_planner_context(mode, planner_result)
     if planner_context:
         messages.append({"role": "system", "content": planner_context})
+    nearby_context = build_nearby_context(mode, nearby_result)
+    if nearby_context:
+        messages.append({"role": "system", "content": nearby_context})
 
     messages.extend(history or [])
     messages.append({"role": "user", "content": message})
@@ -981,6 +1358,7 @@ def call_typhoon(
                             assistant_reply=fallback_text,
                             location=location,
                             planner_result=planner_result,
+                            nearby_result=nearby_result,
                         ),
                     }
 
@@ -1001,6 +1379,7 @@ def call_typhoon(
                     assistant_reply=final_text,
                     location=location,
                     planner_result=planner_result,
+                    nearby_result=nearby_result,
                 ),
             }
 
@@ -1020,6 +1399,7 @@ def call_typhoon(
                         assistant_reply=fallback_text,
                         location=location,
                         planner_result=planner_result,
+                        nearby_result=nearby_result,
                     ),
                 }
         else:
@@ -1044,6 +1424,7 @@ def call_typhoon(
                             assistant_reply=fallback_text,
                             location=location,
                             planner_result=planner_result,
+                            nearby_result=nearby_result,
                         ),
                     }
 
@@ -1074,6 +1455,7 @@ def call_typhoon(
                 assistant_reply=default_text,
                 location=location,
                 planner_result=planner_result,
+                nearby_result=nearby_result,
             ),
         }
 
@@ -1116,6 +1498,7 @@ class ChatHandler(BaseHTTPRequestHandler):
             history = normalize_history(payload.get("history"))
             location = normalize_location(payload.get("location"))
             planner_result = normalize_planner_result(payload.get("planner_result"))
+            nearby_result = normalize_nearby_result(payload.get("nearby_result"))
 
             if not message:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"error": "message is required"})
@@ -1128,7 +1511,14 @@ class ChatHandler(BaseHTTPRequestHandler):
                 self._write_json(HTTPStatus.OK, {"reply": follow_up})
                 return
 
-            result = call_typhoon(message, mode, history, location, planner_result)
+            result = call_typhoon(
+                message,
+                mode,
+                history,
+                location,
+                planner_result,
+                nearby_result,
+            )
             self._write_json(HTTPStatus.OK, result)
         except HTTPError as error:
             body = error.read().decode("utf-8", errors="replace")

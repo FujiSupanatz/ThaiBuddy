@@ -42,6 +42,20 @@ function getApiErrorMessage(errorText: string) {
   return "Error: unable to get a reply from the chatbot service.";
 }
 
+function cleanNearbyReply(reply: string, mode: ChatTab) {
+  if (mode !== "nearby") {
+    return reply;
+  }
+
+  return reply
+    .replaceAll(" - None", "")
+    .replaceAll("restaurants or food places", "ร้านอาหารใกล้คุณ")
+    .replaceAll("coffee or cafes", "คาเฟ่หรือร้านกาแฟใกล้คุณ")
+    .replaceAll("ATMs", "ตู้ ATM ใกล้คุณ")
+    .replaceAll("restrooms", "ห้องน้ำใกล้คุณ")
+    .replaceAll("attractions", "สถานที่เที่ยวใกล้คุณ");
+}
+
 const CHAT_SESSION_STORAGE_KEY = "thatbuddy-chat-session-id";
 const USER_LOCATION_STORAGE_KEY = "thatbuddy-user-location";
 const USER_LOCATION_DRAFT_STORAGE_KEY = "thatbuddy-user-location-draft";
@@ -261,7 +275,7 @@ export default function LandingPage() {
         {
           id: Date.now() + 1,
           sender: "bot",
-          text: payload.reply ?? getBotReply(chatTab),
+          text: cleanNearbyReply(payload.reply ?? getBotReply(chatTab), chatTab),
         },
       ]);
       setLatestMapAction(payload.map_action ?? null);

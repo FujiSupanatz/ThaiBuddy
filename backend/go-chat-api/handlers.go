@@ -69,6 +69,7 @@ func chatHandler(pythonServiceURL string, sessionStore *chatSessionStore) http.H
 			History:       session.snapshotHistory(),
 			Location:      sanitizeLocationForMode(payload.Mode, payload.Location),
 			PlannerResult: payload.PlannerResult,
+			NearbyResult:  payload.NearbyResult,
 		}
 
 		body, err := json.Marshal(pythonPayload)

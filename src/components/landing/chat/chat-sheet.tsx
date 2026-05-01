@@ -1,4 +1,5 @@
 import type { FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import ChatHeader from "./chat-header";
 import ChatInput from "./chat-input";
@@ -22,6 +23,10 @@ interface ChatSheetProps {
   onPlannerPlaceSelect: (action: MapAction) => void;
 }
 
+type MobileSheetState = "expanded" | "collapsed";
+
+const SWIPE_THRESHOLD = 48;
+
 export default function ChatSheet({
   chatOpen,
   chatTab,
@@ -36,30 +41,80 @@ export default function ChatSheet({
   onSubmit,
   onPlannerPlaceSelect,
 }: ChatSheetProps) {
+  const [mobileSheetState, setMobileSheetState] =
+    useState<MobileSheetState>("expanded");
+  const touchStartYRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (chatOpen) {
+      setMobileSheetState("expanded");
+    }
+  }, [chatOpen]);
+
+  const handleToggleCollapse = () => {
+    setMobileSheetState((current) =>
+      current === "expanded" ? "collapsed" : "expanded",
+    );
+  };
+
+  const handleTouchStart = (clientY: number) => {
+    touchStartYRef.current = clientY;
+  };
+
+  const handleTouchEnd = (clientY: number) => {
+    if (touchStartYRef.current === null) {
+      return;
+    }
+
+    const deltaY = clientY - touchStartYRef.current;
+    touchStartYRef.current = null;
+
+    if (deltaY > SWIPE_THRESHOLD) {
+      setMobileSheetState("collapsed");
+      return;
+    }
+
+    if (deltaY < -SWIPE_THRESHOLD) {
+      setMobileSheetState("expanded");
+    }
+  };
+
+  const isCollapsed = mobileSheetState === "collapsed";
+
   return (
-    // bottom sheet หลักของ feature chat
-    // แยกย่อยเป็น header, tabs, messages, input เพื่อให้อ่านและแก้ง่าย
     <div
-      className={`safe-bottom absolute bottom-0 z-30 flex h-[85dvh] w-full flex-col rounded-t-3xl bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)] transition-transform duration-300 ease-in-out lg:bottom-4 lg:right-4 lg:left-auto lg:h-[75vh] lg:max-h-[700px] lg:w-[440px] lg:rounded-3xl ${
+      className={`safe-bottom absolute bottom-0 z-30 flex w-full flex-col rounded-t-3xl bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)] transition-[height,transform] duration-300 ease-in-out lg:bottom-4 lg:right-4 lg:left-auto lg:h-[75vh] lg:max-h-[700px] lg:w-[440px] lg:rounded-3xl ${
         chatOpen ? "translate-y-0" : "translate-y-full lg:translate-y-[120%]"
-      }`}
+      } ${isCollapsed ? "h-[11.5rem]" : "h-[85dvh]"}`}
     >
-      <ChatHeader onClose={onClose} />
-      <ChatTabs activeTab={chatTab} onChange={onTabChange} />
-      <ChatMessages messages={messages} />
-      {chatTab === "planner" && plannerResult ? (
-        <PlannerPanel
-          plannerResult={plannerResult}
-          onPinPlace={onPlannerPlaceSelect}
-        />
-      ) : null}
-      <ChatInput
-        value={inputText}
-        isSending={isSending}
-        locationNotice={locationNotice}
-        onChange={onInputChange}
-        onSubmit={onSubmit}
+      <ChatHeader
+        onClose={onClose}
+        isCollapsed={isCollapsed}
+        onToggleCollapse={handleToggleCollapse}
+        onHandleTouchStart={handleTouchStart}
+        onHandleTouchEnd={handleTouchEnd}
       />
+      <ChatTabs activeTab={chatTab} onChange={onTabChange} />
+      <div
+        className={`min-h-0 flex-1 flex-col overflow-hidden ${
+          isCollapsed ? "hidden lg:flex" : "flex"
+        }`}
+      >
+        <ChatMessages messages={messages} isSending={isSending} />
+        {chatTab === "planner" && plannerResult ? (
+          <PlannerPanel
+            plannerResult={plannerResult}
+            onPinPlace={onPlannerPlaceSelect}
+          />
+        ) : null}
+        <ChatInput
+          value={inputText}
+          isSending={isSending}
+          locationNotice={locationNotice}
+          onChange={onInputChange}
+          onSubmit={onSubmit}
+        />
+      </div>
     </div>
   );
 }

@@ -22,7 +22,7 @@ export default function PlannerPanel({
   const tips = plannerResult.tips.slice(0, 3);
 
   return (
-    <div className="border-t border-blue-100 bg-blue-50/60 px-4 py-4">
+    <div className="border-t border-blue-100 bg-blue-50/60 px-4 py-4 overflow-y-auto max-h-[40dvh] flex-shrink-0 scroll-touch">
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h3 className="text-sm font-bold text-slate-800">Plan Summary</h3>

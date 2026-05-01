@@ -1,4 +1,12 @@
 services:
+  ocr-service:
+    build:
+      context: ./backend/ocr-service
+    env_file:
+      - ./backend/ocr-service/.env
+    ports:
+      - "8002:8002"
+
   python-chat-service:
     build:
       context: ./backend/python-chat-service
@@ -30,8 +38,10 @@ services:
       context: .
     depends_on:
       - go-chat-api
+      - ocr-service
     environment:
       INTERNAL_CHAT_API_URL: http://go-chat-api:8080/api/v1/chat
+      OCR_SERVICE_URL: http://ocr-service:8002
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
       TYPHOON_API_KEY: ${TYPHOON_API_KEY}
       TYPHOON_BASE_URL: ${TYPHOON_BASE_URL:-https://api.opentyphoon.ai/v1}

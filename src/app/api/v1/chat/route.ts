@@ -1,5 +1,7 @@
+import { searchNearbyPlaces } from "@/server/nearby/search";
 import { handlePlan } from "@/server/planner/plan";
 import type { ItineraryResult } from "@/server/planner/types";
+import type { NearbyResult } from "@/server/nearby/types";
 
 type ChatLocationPayload = {
   lat?: number | null;
@@ -20,6 +22,7 @@ type ChatResponsePayload = {
   reply?: string;
   map_action?: unknown;
   planner_result?: ItineraryResult;
+  nearby_result?: NearbyResult;
 };
 
 function hasCoordinates(location: ChatLocationPayload | undefined) {
@@ -55,6 +58,7 @@ export async function POST(request: Request) {
   }
 
   let plannerResult: ItineraryResult | null = null;
+  let nearbyResult: NearbyResult | null = null;
 
   if (payload.mode === "planner" && hasCoordinates(payload.location)) {
     try {
@@ -68,9 +72,23 @@ export async function POST(request: Request) {
     }
   }
 
-  const forwardPayload = plannerResult
-    ? { ...payload, planner_result: plannerResult }
-    : payload;
+  if (payload.mode === "nearby" && hasCoordinates(payload.location) && payload.message) {
+    try {
+      nearbyResult = await searchNearbyPlaces(
+        payload.message,
+        payload.location!.lat!,
+        payload.location!.lng!,
+      );
+    } catch {
+      nearbyResult = null;
+    }
+  }
+
+  const forwardPayload = {
+    ...payload,
+    ...(plannerResult ? { planner_result: plannerResult } : {}),
+    ...(nearbyResult ? { nearby_result: nearbyResult } : {}),
+  };
 
   try {
     const response = await fetch(backendUrl, {
@@ -93,6 +111,9 @@ export async function POST(request: Request) {
 
     if (responsePayload && plannerResult && !responsePayload.planner_result) {
       responsePayload.planner_result = plannerResult;
+    }
+    if (responsePayload && nearbyResult && !responsePayload.nearby_result) {
+      responsePayload.nearby_result = nearbyResult;
     }
 
     return new Response(

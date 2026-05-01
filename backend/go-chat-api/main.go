@@ -15,6 +15,7 @@ type chatRequest struct {
 	SessionID     string          `json:"session_id"`
 	Location      *chatLocation   `json:"location"`
 	PlannerResult json.RawMessage `json:"planner_result,omitempty"`
+	NearbyResult  json.RawMessage `json:"nearby_result,omitempty"`
 }
 
 type pythonChatRequest struct {
@@ -24,6 +25,7 @@ type pythonChatRequest struct {
 	History       []pythonChatTurn `json:"history"`
 	Location      *chatLocation    `json:"location"`
 	PlannerResult json.RawMessage  `json:"planner_result,omitempty"`
+	NearbyResult  json.RawMessage  `json:"nearby_result,omitempty"`
 }
 
 type pythonChatResponse struct {

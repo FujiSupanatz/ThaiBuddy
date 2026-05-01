@@ -115,6 +115,7 @@ export default function MapExperience({
   const [results, setResults] = useState<PlaceResult[]>([]);
   const [emptyMessage, setEmptyMessage] = useState("");
   const [debugEntries, setDebugEntries] = useState<DebugEntry[]>([]);
+  const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
 
   const reportLocationChange = (location: UserLocation) => {
     onLocationChange(location);
@@ -698,14 +699,14 @@ export default function MapExperience({
         }}
       />
 
-      <header className="safe-top z-20 flex items-center justify-between border-b bg-white px-4 py-4 shadow-sm">
+      <header className="safe-top z-20 hidden items-center justify-between border-b bg-white px-4 py-4 shadow-sm lg:flex">
         <div className="flex items-center gap-2">
           <div className="rounded-lg bg-blue-600 px-2 py-2 text-sm font-bold text-white">
             MAP
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight">VibeFinder</h1>
-            <p className="text-[11px] text-slate-500">Find your perfect spot</p>
+            <h1 className="text-lg font-bold tracking-tight">ThaiBuddy</h1>
+            <p className="text-[11px] text-slate-500">Vipe Finder Find your perfect spot</p>
           </div>
         </div>
         <div
@@ -715,9 +716,36 @@ export default function MapExperience({
         </div>
       </header>
 
-      <main className="flex flex-1 flex-col overflow-hidden lg:flex-row">
-        <aside className="z-20 flex w-full flex-col border-b bg-white/95 shadow-xl backdrop-blur lg:w-[400px] lg:flex-shrink-0 lg:border-b-0 lg:border-r lg:shadow-none">
-          <div className="map-custom-scrollbar scroll-touch flex max-h-[48vh] flex-col gap-5 overflow-y-auto p-4 lg:max-h-none lg:flex-1">
+      <main className="relative flex flex-1 overflow-hidden lg:flex-row">
+        {isMobilePanelOpen ? (
+          <button
+            type="button"
+            aria-label="Close map tools"
+            onClick={() => setIsMobilePanelOpen(false)}
+            className="absolute inset-0 z-20 bg-slate-950/35 backdrop-blur-[1px] lg:hidden"
+          />
+        ) : null}
+        <aside
+          className={`absolute inset-y-0 right-0 z-30 flex w-[88vw] max-w-sm flex-col border-l border-slate-200 bg-white/95 shadow-2xl backdrop-blur transition-transform duration-300 lg:static lg:z-20 lg:w-[400px] lg:max-w-none lg:flex-shrink-0 lg:translate-x-0 lg:border-l-0 lg:border-b-0 lg:border-r lg:shadow-none ${
+            isMobilePanelOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+        >
+          <div className="safe-top flex items-center justify-between border-b px-4 pb-3 pt-5 lg:hidden">
+            <div>
+              <h2 className="text-lg font-bold tracking-tight text-slate-900">ThaiBuddy</h2>
+              <p className="text-[11px] text-slate-500">
+                Vipe Finder Find your perfect spot
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsMobilePanelOpen(false)}
+              className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-600"
+            >
+              Close
+            </button>
+          </div>
+          <div className="map-custom-scrollbar scroll-touch flex h-full flex-col gap-5 overflow-y-auto p-4 lg:max-h-none lg:flex-1">
             <section>
               <label
                 htmlFor="start-location"
@@ -843,7 +871,10 @@ export default function MapExperience({
                     <button
                       key={place.id}
                       type="button"
-                      onClick={() => handleResultClick(place, index)}
+                      onClick={() => {
+                        handleResultClick(place, index);
+                        setIsMobilePanelOpen(false);
+                      }}
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-left shadow-sm transition-all hover:border-blue-400 hover:bg-white"
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -908,10 +939,42 @@ export default function MapExperience({
           </div>
         </aside>
 
-        <section className="relative flex-1 p-4 pb-28 lg:pb-4">
+        <section className="relative flex-1 p-0 pb-28 lg:p-4 lg:pb-4">
+          <div className="safe-top absolute left-0 right-0 top-0 z-20 flex items-start justify-between px-4 pt-4 lg:hidden">
+            <div className="rounded-2xl bg-white/92 px-4 py-3 shadow-lg backdrop-blur">
+              <div className="flex items-center gap-2">
+                <div className="rounded-lg bg-blue-600 px-2 py-2 text-sm font-bold text-white">
+                  MAP
+                </div>
+                <div>
+                  <h1 className="text-lg font-bold tracking-tight text-slate-900">
+                    ThaiBuddy
+                  </h1>
+                  <p className="text-[11px] text-slate-500">
+                    Vipe Finder Find your perfect spot
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div
+                className="rounded-full border border-blue-200 bg-white/92 px-4 py-2 text-[11px] font-semibold text-blue-700 shadow-lg backdrop-blur"
+              >
+                ThaiBuddy
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobilePanelOpen(true)}
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-white/92 text-2xl font-bold text-slate-700 shadow-lg backdrop-blur"
+                aria-label="Open map tools"
+              >
+                ⋯
+              </button>
+            </div>
+          </div>
           <div
             ref={mapElementRef}
-            className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl bg-slate-100 shadow-inner"
+            className="relative flex h-full w-full items-center justify-center overflow-hidden bg-slate-100 shadow-inner lg:rounded-xl"
           >
             {apiWarning ? (
               <div className="z-10 mx-4 max-w-lg rounded-3xl border border-slate-200 bg-white/95 p-8 text-center shadow-2xl backdrop-blur">

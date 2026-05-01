@@ -2,12 +2,14 @@ import type { Message } from "../types";
 
 interface ChatMessagesProps {
   messages: Message[];
+  isSending: boolean;
 }
 
-export default function ChatMessages({ messages }: ChatMessagesProps) {
+export default function ChatMessages({
+  messages,
+  isSending,
+}: ChatMessagesProps) {
   return (
-    // พื้นที่แสดงข้อความทั้งหมดในแชท
-    // ใช้ sender เพื่อกำหนดตำแหน่ง bubble ซ้าย/ขวา
     <div className="scroll-touch flex-1 space-y-4 overflow-y-auto bg-gray-50 p-4">
       {messages.map((message) => (
         <div
@@ -25,6 +27,13 @@ export default function ChatMessages({ messages }: ChatMessagesProps) {
           </div>
         </div>
       ))}
+      {isSending ? (
+        <div className="flex justify-start">
+          <div className="max-w-[80%] rounded-2xl rounded-tl-sm border border-gray-200 bg-white p-3 text-sm text-gray-500 shadow-sm">
+            Thinking...
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

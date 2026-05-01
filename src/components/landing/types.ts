@@ -2,6 +2,7 @@ export type ViewMode = "map" | "vision";
 export type ChatTab = "general" | "nearby" | "planner";
 export type VisionTab = "currency" | "signage";
 export type CurrencyCode = "USD" | "EUR" | "JPY";
+export type OCRMode = "general" | "menu";
 export type LocationSource =
   | "gps"
   | "map-click"
@@ -53,4 +54,25 @@ export type UserLocation = {
   label: string;
   source: LocationSource;
   updatedAt: number;
+};
+
+export type OCRGeneralResult = {
+  text: string;
+  translate_text: string;
+};
+
+export type OCRMenuItem = {
+  thai_name: string;
+  english_name: string | null;
+  price_thb: number | null;
+  confidence: number;
+  price_usd?: number | null;
+  price_eur?: number | null;
+  price_jpy?: number | null;
+};
+
+export type OCRMenuResult = {
+  items: OCRMenuItem[];
+  currency: string;
+  count: number;
 };

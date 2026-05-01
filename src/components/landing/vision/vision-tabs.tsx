@@ -7,9 +7,6 @@ interface VisionTabsProps {
 
 export default function VisionTabs({ visionTab, onChange }: VisionTabsProps) {
   return (
-    // tabs ของ vision แยก 2 feature เดิม:
-    // - currency reader
-    // - translate sign
     <div className="relative mb-6 flex rounded-full bg-gray-800 p-1">
       <button
         onClick={() => onChange("currency")}
@@ -25,7 +22,7 @@ export default function VisionTabs({ visionTab, onChange }: VisionTabsProps) {
           visionTab === "signage" ? "text-white" : "text-gray-400"
         }`}
       >
-        🪧 Translate Sign
+        🪧 Signs & Menu
       </button>
       <div
         className={`absolute bottom-1 top-1 w-[calc(50%-4px)] rounded-full bg-indigo-600 transition-all duration-300 ease-out ${

@@ -1,0 +1,15 @@
+import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+TYPHOON_API_KEY = os.getenv("TYPHOON_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+
+TYPHOON_OCR_TEMP = 0.3
+TYPHOON_OCR_TOP_P = 0.7
+
+TYPHOON_TEXT_TEMP = 0.3
+TYPHOON_TEXT_TOP_P = 0.8
+TYPHOON_TEXT_MAX_TOKENS = 3000

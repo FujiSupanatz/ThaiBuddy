@@ -19,3 +19,5 @@
 2026-05-01T07:56:44Z INF ICMP proxy will use 2405:9800:b550:6097::1 in zone Ethernet as source for IPv6
 2026-05-01T07:56:44Z INF Starting metrics server on 127.0.0.1:20242/metrics
 2026-05-01T07:56:45Z INF Registered tunnel connection connIndex=0 connection=90774e4d-58ac-4c3f-be49-fa84707b9f4e event=0 ip=198.41.200.43 location=sin12 protocol=http2
+2026-05-01T15:13:23Z ERR  error="Incoming request ended abruptly: context canceled" connIndex=0 event=1 ingressRule=0 originService=http://localhost:3000
+2026-05-01T15:13:23Z ERR failed to serve incoming request error="Failed to proxy HTTP: Incoming request ended abruptly: context canceled"
