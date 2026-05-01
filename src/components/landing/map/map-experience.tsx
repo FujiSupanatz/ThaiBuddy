@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { UserLocation } from "../types";
+import type { MapAction, UserLocation } from "../types";
 
 type Category = "cafe" | "museum" | "library" | "toilet";
 type Vibe = "cozy" | "work" | "social" | "modern";
@@ -76,6 +76,7 @@ const GIMMICK_OPTIONS: Array<{ id: Gimmick; label: string }> = [
 interface MapExperienceProps {
   initialLocation: UserLocation | null;
   initialLocationDraft: string;
+  mapAction?: MapAction | null;
   onLocationChange: (location: UserLocation) => void;
   onLocationDraftChange: (value: string) => void;
 }
@@ -83,6 +84,7 @@ interface MapExperienceProps {
 export default function MapExperience({
   initialLocation,
   initialLocationDraft,
+  mapAction,
   onLocationChange,
   onLocationDraftChange,
 }: MapExperienceProps) {
@@ -312,6 +314,35 @@ export default function MapExperience({
 
         logDebug(`Places API error: ${status}`, true);
         showMessage(`Search error: ${status}`);
+      },
+    );
+  };
+
+  const runMapAction = (action: MapAction) => {
+    const googleMaps = window.google?.maps;
+    if (!googleMaps || !placesServiceRef.current || !mapRef.current) {
+      return;
+    }
+
+    clearResultMarkers();
+    setResults([]);
+    setEmptyMessage("");
+    logDebug(`Applying map action: ${action.query}`);
+
+    placesServiceRef.current.textSearch(
+      {
+        query: action.query,
+        location: new googleMaps.LatLng(userPos.lat, userPos.lng),
+      },
+      (rawResults: any[] | null, status: string) => {
+        if (status !== googleMaps.places.PlacesServiceStatus.OK || !rawResults?.length) {
+          logDebug(`Map action textSearch error: ${status}`, true);
+          showMessage(`Unable to pin "${action.label}" on the map right now.`);
+          return;
+        }
+
+        logDebug(`Map action pinned: ${action.label}`);
+        processResults(rawResults.slice(0, 5));
       },
     );
   };
@@ -553,6 +584,14 @@ export default function MapExperience({
 
     searchPlaces();
   }, [selectedCategory, selectedVibe, selectedGimmick, distanceKm]);
+
+  useEffect(() => {
+    if (!mapAction || !initializedRef.current) {
+      return;
+    }
+
+    runMapAction(mapAction);
+  }, [mapAction]);
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {

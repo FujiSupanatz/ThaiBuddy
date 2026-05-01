@@ -15,6 +15,38 @@ export type Message = {
   text: string;
 };
 
+export type PlannerPlace = {
+  name: string;
+  type: string;
+  distance_km: number;
+  description: string;
+  opening_hours: string;
+  entrance_fee_thb: number;
+};
+
+export type PlannerStep = {
+  time: string;
+  activity: string;
+  place: string;
+  transport: string;
+  transport_cost_thb: number;
+  activity_cost_thb: number;
+};
+
+export type PlannerResult = {
+  places: PlannerPlace[];
+  itinerary: PlannerStep[];
+  estimated_cost_thb: number;
+  tips: string[];
+};
+
+export type MapAction = {
+  type: "pin-place";
+  query: string;
+  label: string;
+  mode: "nearby" | "planner";
+};
+
 export type UserLocation = {
   lat: number | null;
   lng: number | null;

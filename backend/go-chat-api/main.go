@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -9,26 +10,30 @@ import (
 )
 
 type chatRequest struct {
-	Message   string        `json:"message"`
-	Mode      string        `json:"mode"`
-	SessionID string        `json:"session_id"`
-	Location  *chatLocation `json:"location"`
+	Message       string          `json:"message"`
+	Mode          string          `json:"mode"`
+	SessionID     string          `json:"session_id"`
+	Location      *chatLocation   `json:"location"`
+	PlannerResult json.RawMessage `json:"planner_result,omitempty"`
 }
 
 type pythonChatRequest struct {
-	Message   string           `json:"message"`
-	Mode      string           `json:"mode"`
-	SessionID string           `json:"session_id"`
-	History   []pythonChatTurn `json:"history"`
-	Location  *chatLocation    `json:"location"`
+	Message       string           `json:"message"`
+	Mode          string           `json:"mode"`
+	SessionID     string           `json:"session_id"`
+	History       []pythonChatTurn `json:"history"`
+	Location      *chatLocation    `json:"location"`
+	PlannerResult json.RawMessage  `json:"planner_result,omitempty"`
 }
 
 type pythonChatResponse struct {
-	Reply string `json:"reply"`
+	Reply     string         `json:"reply"`
+	MapAction *chatMapAction `json:"map_action,omitempty"`
 }
 
 type chatResponse struct {
-	Reply string `json:"reply"`
+	Reply     string         `json:"reply"`
+	MapAction *chatMapAction `json:"map_action,omitempty"`
 }
 
 type pythonChatTurn struct {
@@ -42,6 +47,13 @@ type chatLocation struct {
 	Label     string   `json:"label"`
 	Source    string   `json:"source"`
 	UpdatedAt int64    `json:"updated_at"`
+}
+
+type chatMapAction struct {
+	Type  string `json:"type"`
+	Query string `json:"query"`
+	Label string `json:"label"`
+	Mode  string `json:"mode"`
 }
 
 func main() {

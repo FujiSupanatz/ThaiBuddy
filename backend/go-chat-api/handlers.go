@@ -63,11 +63,12 @@ func chatHandler(pythonServiceURL string, sessionStore *chatSessionStore) http.H
 		defer session.mutex.Unlock()
 
 		pythonPayload := pythonChatRequest{
-			Message:   payload.Message,
-			Mode:      payload.Mode,
-			SessionID: sessionID,
-			History:   session.snapshotHistory(),
-			Location:  sanitizeLocationForMode(payload.Mode, payload.Location),
+			Message:       payload.Message,
+			Mode:          payload.Mode,
+			SessionID:     sessionID,
+			History:       session.snapshotHistory(),
+			Location:      sanitizeLocationForMode(payload.Mode, payload.Location),
+			PlannerResult: payload.PlannerResult,
 		}
 
 		body, err := json.Marshal(pythonPayload)
@@ -126,7 +127,8 @@ func chatHandler(pythonServiceURL string, sessionStore *chatSessionStore) http.H
 		}
 
 		writeJSON(writer, http.StatusOK, chatResponse{
-			Reply: pythonPayloadResponse.Reply,
+			Reply:     pythonPayloadResponse.Reply,
+			MapAction: pythonPayloadResponse.MapAction,
 		})
 
 		// Only persist conversational turns after the AI call succeeds.

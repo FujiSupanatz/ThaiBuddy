@@ -8,6 +8,8 @@ services:
       TYPHOON_API_KEY: ${TYPHOON_API_KEY}
       TYPHOON_BASE_URL: ${TYPHOON_BASE_URL:-https://api.opentyphoon.ai/v1}
       TYPHOON_MODEL: ${TYPHOON_MODEL:-typhoon-v2.5-30b-a3b-instruct}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
+      GOOGLE_GEOCODING_API_KEY: ${GOOGLE_GEOCODING_API_KEY:-}
     ports:
       - "8001:8001"
 
@@ -31,5 +33,11 @@ services:
     environment:
       INTERNAL_CHAT_API_URL: http://go-chat-api:8080/api/v1/chat
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
+      TYPHOON_API_KEY: ${TYPHOON_API_KEY}
+      TYPHOON_BASE_URL: ${TYPHOON_BASE_URL:-https://api.opentyphoon.ai/v1}
+      TYPHOON_MODEL: ${TYPHOON_MODEL:-typhoon-v2.5-30b-a3b-instruct}
+      OVERPASS_API_URL: ${OVERPASS_API_URL:-https://overpass.kumi.systems/api/interpreter}
+      OVERPASS_RADIUS_METERS: ${OVERPASS_RADIUS_METERS:-5000}
+      OVERPASS_USER_AGENT: ${OVERPASS_USER_AGENT:-ThatBuddy/1.0 (planner-engine)}
     ports:
       - "3000:3000"

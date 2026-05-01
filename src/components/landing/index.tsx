@@ -15,7 +15,9 @@ import MapExperience from "./map/map-experience";
 import type {
   ChatTab,
   CurrencyCode,
+  MapAction,
   Message,
+  PlannerResult,
   UserLocation,
   ViewMode,
   VisionTab,
@@ -118,6 +120,8 @@ export default function LandingPage() {
   const [chatSessionId, setChatSessionId] = useState("");
   const [currentLocation, setCurrentLocation] = useState<UserLocation | null>(null);
   const [locationDraftLabel, setLocationDraftLabel] = useState("");
+  const [latestMapAction, setLatestMapAction] = useState<MapAction | null>(null);
+  const [plannerResult, setPlannerResult] = useState<PlannerResult | null>(null);
 
   // state ชุดนี้เป็นของ vision > currency tool
   // เก็บจำนวนเงินบาท, สกุลเงินปลายทาง, และสถานะว่า scanner animation ควรทำงานหรือไม่
@@ -246,7 +250,11 @@ export default function LandingPage() {
         throw new Error(errorText);
       }
 
-      const payload = (await response.json()) as { reply?: string };
+      const payload = (await response.json()) as {
+        reply?: string;
+        map_action?: MapAction | null;
+        planner_result?: PlannerResult | null;
+      };
 
       setMessages((current) => [
         ...current,
@@ -256,6 +264,8 @@ export default function LandingPage() {
           text: payload.reply ?? getBotReply(chatTab),
         },
       ]);
+      setLatestMapAction(payload.map_action ?? null);
+      setPlannerResult(payload.planner_result ?? null);
     } catch (error) {
       const errorMessage =
         error instanceof Error
@@ -276,6 +286,9 @@ export default function LandingPage() {
 
     // เมื่อสลับ tab จะล้างประวัติแชทเดิม เพื่อให้แต่ละ mode เริ่มต้นใหม่ชัดเจน
     setMessages([]);
+    if (tab !== "planner") {
+      setPlannerResult(null);
+    }
 
     // ใส่ข้อความ intro ของ mode นั้นกลับเข้ามาหลังสลับ tab
     window.setTimeout(() => {
@@ -290,6 +303,7 @@ export default function LandingPage() {
       <MapExperience
         initialLocation={currentLocation}
         initialLocationDraft={locationDraftLabel}
+        mapAction={latestMapAction}
         onLocationChange={setCurrentLocation}
         onLocationDraftChange={setLocationDraftLabel}
       />
@@ -318,10 +332,12 @@ export default function LandingPage() {
         inputText={inputText}
         isSending={isSending}
         locationNotice={locationNotice}
+        plannerResult={plannerResult}
         onClose={() => setChatOpen(false)}
         onTabChange={handleTabChange}
         onInputChange={setInputText}
         onSubmit={handleSendMessage}
+        onPlannerPlaceSelect={setLatestMapAction}
       />
 
       {/* VisionOverlay แยก feature OCR / camera ออกมาจาก chat อย่างชัดเจน
