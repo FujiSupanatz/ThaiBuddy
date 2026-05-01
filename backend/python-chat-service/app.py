@@ -22,15 +22,29 @@ from urllib.request import Request, urlopen
 
 def load_env_files() -> None:
     """Load .env.local / .env without external dependencies."""
-    base_dir = Path(__file__).resolve().parents[2]
+    current_file = Path(__file__).resolve()
+    candidate_roots = [current_file.parent]
+
+    # เดินขึ้น parent เท่าที่มีอยู่จริง เพื่อให้ใช้ได้ทั้ง local path และใน container
+    candidate_roots.extend(current_file.parents)
+
     candidates = [
         Path(".env.local"),
         Path(".env"),
-        base_dir / ".env.local",
-        base_dir / ".env",
     ]
 
+    for root in candidate_roots:
+        candidates.append(root / ".env.local")
+        candidates.append(root / ".env")
+
+    seen: set[Path] = set()
+
     for env_path in candidates:
+        env_path = env_path.resolve()
+        if env_path in seen:
+            continue
+        seen.add(env_path)
+
         if not env_path.exists():
             continue
 
