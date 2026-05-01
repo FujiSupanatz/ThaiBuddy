@@ -35,8 +35,8 @@ export default function ChatSheet({
     // bottom sheet หลักของ feature chat
     // แยกย่อยเป็น header, tabs, messages, input เพื่อให้อ่านและแก้ง่าย
     <div
-      className={`absolute bottom-0 z-30 flex h-[80vh] w-full flex-col rounded-t-3xl bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)] transition-transform duration-300 ease-in-out ${
-        chatOpen ? "translate-y-0" : "translate-y-full"
+      className={`safe-bottom absolute bottom-0 z-30 flex h-[80vh] w-full flex-col rounded-t-3xl bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)] transition-transform duration-300 ease-in-out lg:bottom-4 lg:right-4 lg:left-auto lg:h-[75vh] lg:max-h-[700px] lg:w-[440px] lg:rounded-3xl ${
+        chatOpen ? "translate-y-0" : "translate-y-full lg:translate-y-[120%]"
       }`}
     >
       <ChatHeader onClose={onClose} />

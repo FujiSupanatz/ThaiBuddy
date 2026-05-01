@@ -284,7 +284,7 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="relative mx-auto h-screen w-full max-w-md overflow-hidden border-x border-gray-200 bg-gray-100 font-sans shadow-2xl">
+    <div className="h-screen-safe relative mx-auto w-full overflow-hidden bg-gray-100 font-sans">
       {/* แทนที่แผนที่ placeholder เดิมด้วย Google Maps experience จริง
           และย้าย feature map/filter/result จากไฟล์ Mapping\\index.html เข้ามาอยู่ในแอปนี้ */}
       <MapExperience

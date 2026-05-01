@@ -17,3 +17,35 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ── Safari & responsive viewport fixes ── */
+
+/* Dynamic viewport height with fallback for older browsers */
+.h-screen-safe {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* iOS Safari: prevent auto-zoom on input focus (font-size must be >= 16px) */
+@supports (-webkit-touch-callout: none) {
+  input[type="text"],
+  input[type="number"],
+  input[type="search"],
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* Safe area inset utilities for notched / Dynamic Island devices */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* iOS momentum scrolling */
+.scroll-touch {
+  -webkit-overflow-scrolling: touch;
+}

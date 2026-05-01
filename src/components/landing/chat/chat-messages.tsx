@@ -8,7 +8,7 @@ export default function ChatMessages({ messages }: ChatMessagesProps) {
   return (
     // พื้นที่แสดงข้อความทั้งหมดในแชท
     // ใช้ sender เพื่อกำหนดตำแหน่ง bubble ซ้าย/ขวา
-    <div className="flex-1 space-y-4 overflow-y-auto bg-gray-50 p-4">
+    <div className="scroll-touch flex-1 space-y-4 overflow-y-auto bg-gray-50 p-4">
       {messages.map((message) => (
         <div
           key={message.id}

@@ -23,7 +23,7 @@ export default function VisionControls({
   return (
     // แผงควบคุมด้านล่างของ vision overlay
     // เป็นตัวตัดสินใจว่าจะ render currency tool หรือ signage tool
-    <div className="z-50 rounded-t-3xl bg-gray-900 px-4 pb-8 pt-4 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+    <div className="safe-bottom z-50 rounded-t-3xl bg-gray-900 px-4 pb-8 pt-4 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
       <VisionTabs visionTab={visionTab} onChange={onVisionTabChange} />
 
       {visionTab === "currency" && (

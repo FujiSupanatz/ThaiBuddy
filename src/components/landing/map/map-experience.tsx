@@ -659,7 +659,7 @@ export default function MapExperience({
         }}
       />
 
-      <header className="z-20 flex items-center justify-between border-b bg-white px-4 py-4 shadow-sm">
+      <header className="safe-top z-20 flex items-center justify-between border-b bg-white px-4 py-4 shadow-sm">
         <div className="flex items-center gap-2">
           <div className="rounded-lg bg-blue-600 px-2 py-2 text-sm font-bold text-white">
             MAP
@@ -676,9 +676,9 @@ export default function MapExperience({
         </div>
       </header>
 
-      <main className="flex flex-1 flex-col overflow-hidden">
-        <aside className="z-20 flex w-full flex-col border-b bg-white/95 shadow-xl backdrop-blur">
-          <div className="map-custom-scrollbar flex max-h-[48vh] flex-col gap-5 overflow-y-auto p-4">
+      <main className="flex flex-1 flex-col overflow-hidden lg:flex-row">
+        <aside className="z-20 flex w-full flex-col border-b bg-white/95 shadow-xl backdrop-blur lg:w-[400px] lg:flex-shrink-0 lg:border-b-0 lg:border-r lg:shadow-none">
+          <div className="map-custom-scrollbar scroll-touch flex max-h-[48vh] flex-col gap-5 overflow-y-auto p-4 lg:max-h-none lg:flex-1">
             <section>
               <label
                 htmlFor="start-location"
@@ -869,7 +869,7 @@ export default function MapExperience({
           </div>
         </aside>
 
-        <section className="relative flex-1 p-4 pb-28">
+        <section className="relative flex-1 p-4 pb-28 lg:pb-4">
           <div
             ref={mapElementRef}
             className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl bg-slate-100 shadow-inner"
