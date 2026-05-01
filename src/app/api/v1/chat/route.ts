@@ -2,6 +2,11 @@ import { searchNearbyPlaces } from "@/server/nearby/search";
 import { handlePlan } from "@/server/planner/plan";
 import type { ItineraryResult } from "@/server/planner/types";
 import type { NearbyResult } from "@/server/nearby/types";
+import {
+  createCountryBlockedResponse,
+  enforceRateLimit,
+  isThailandAllowed,
+} from "@/server/security/request-guard";
 
 type ChatLocationPayload = {
   lat?: number | null;
@@ -35,6 +40,19 @@ function hasCoordinates(location: ChatLocationPayload | undefined) {
 }
 
 export async function POST(request: Request) {
+  if (!isThailandAllowed(request)) {
+    return createCountryBlockedResponse(request);
+  }
+
+  const rateLimitResponse = enforceRateLimit(request, {
+    scope: "chat",
+    maxRequests: Number(process.env.CHAT_RATE_LIMIT_MAX ?? 20),
+    windowMs: Number(process.env.CHAT_RATE_LIMIT_WINDOW_MS ?? 60_000),
+  });
+  if (rateLimitResponse) {
+    return rateLimitResponse;
+  }
+
   const backendUrl =
     process.env.INTERNAL_CHAT_API_URL ?? "http://localhost:8080/api/v1/chat";
 

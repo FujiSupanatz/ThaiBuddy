@@ -1,4 +1,9 @@
 import { searchNearbyPlaces } from "@/server/nearby/search";
+import {
+  createCountryBlockedResponse,
+  enforceRateLimit,
+  isThailandAllowed,
+} from "@/server/security/request-guard";
 
 type NearbyRequestPayload = {
   message?: string;
@@ -7,6 +12,19 @@ type NearbyRequestPayload = {
 };
 
 export async function POST(request: Request) {
+  if (!isThailandAllowed(request)) {
+    return createCountryBlockedResponse(request);
+  }
+
+  const rateLimitResponse = enforceRateLimit(request, {
+    scope: "nearby",
+    maxRequests: Number(process.env.NEARBY_RATE_LIMIT_MAX ?? 15),
+    windowMs: Number(process.env.NEARBY_RATE_LIMIT_WINDOW_MS ?? 60_000),
+  });
+  if (rateLimitResponse) {
+    return rateLimitResponse;
+  }
+
   let payload: NearbyRequestPayload;
 
   try {
