@@ -706,7 +706,7 @@ export default function MapExperience({
           </div>
           <div>
             <h1 className="text-lg font-bold tracking-tight">ThaiBuddy</h1>
-            <p className="text-[11px] text-slate-500">Vipe Finder Find your perfect spot</p>
+            <p className="text-[11px] text-slate-500">Vibe Finder, find your perfect spot</p>
           </div>
         </div>
         <div
