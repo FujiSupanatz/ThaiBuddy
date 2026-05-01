@@ -6,7 +6,6 @@ services:
     dockerfilePath: ./backend/python-chat-service/Dockerfile
     dockerContext: ./backend/python-chat-service
     rootDir: ./backend/python-chat-service
-    healthCheckPath: /health
     envVars:
       - key: PYTHON_CHAT_SERVICE_HOST
         value: 0.0.0.0
