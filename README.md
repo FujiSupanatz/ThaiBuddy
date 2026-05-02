@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ThaiBuddy
 
-## Getting Started
+ThaiBuddy is an AI-powered travel assistant web app for Thailand. It combines interactive maps, nearby place discovery, trip planning, multilingual chat, and OCR tools for signs, menus, and currency conversion.
 
-First, run the development server:
+## Features
+
+- Interactive Google Maps experience for exploring places in Thailand
+- AI chat assistant with `General`, `Nearby`, and `Plan Next` modes
+- Nearby place recommendations based on the user's current location
+- Trip planning with structured itinerary support
+- OCR for Thai signs and printed text
+- Menu OCR with price extraction and currency conversion
+- Currency conversion tools for tourists
+
+## Tech Stack
+
+- Frontend: Next.js, React, TypeScript
+- Chat Gateway: Go
+- AI Services: Python
+- OCR Service: Python
+- External Services: Typhoon API, Google Maps Platform, Overpass / OpenStreetMap
+
+## Project Structure
+
+- `src/` - frontend UI, API routes, planner logic, and security guards
+- `backend/go-chat-api/` - Go gateway for chat sessions and request orchestration
+- `backend/python-chat-service/` - Python service for LLM-based chat logic
+- `backend/ocr-service/` - Python OCR service for signs, menus, and exchange-rate tools
+
+## Team Members
+
+- `609154` - Aekkrit Kuntipalo
+- `609077` - Wachirawit Piyaprapapan
+- `602137` - Kittikorn Pimted
+- `605602` - Supanat Kerdpoca
+
+## Run Locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+docker compose --env-file .env.local up -d
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `http://localhost:3000`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Notes
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- This project is designed for demo and prototype use.
+- Some features require API keys in local environment files.
+- Public demo access is currently restricted to Thailand through Cloudflare-aware request guards.
